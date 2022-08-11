@@ -18188,6 +18188,7 @@ const createSendTransport = () => {
     })
 
     //connectSendTransport
+    enableMic()
   })
 }
 

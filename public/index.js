@@ -180,6 +180,7 @@ const createSendTransport = () => {
     })
 
     //connectSendTransport
+    enableMic()
   })
 }
 
