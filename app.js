@@ -427,16 +427,26 @@ connections.on('connection', async socket => {
 
   socket.on('closeProducer', async ({ producerId }) => {
     console.log('closeProducer')
-    console.log('producerId: ',producerId)
-    console.log('producer: ',producers)
+    
+    const producer = producers.filter(producer => producer.producer.id === producerId)
+
+    if (!producer)
+    throw new Error(`producer with id "${producerId}" not found`);
+
+    producer[0].producer.close();
+
+
+    console.log('before producers:',producers)
+    // Remove from its map.
+    //peer.data.producers.delete(producer.id);
+    producers = producers.filter(producer => producer.producer.id != producerId)
+    console.log('after producers:',producers)
   })
 
   socket.on('pauseProducer', async ({ producerId }) => {
     console.log('pauseProducer')
 
 		const producer = producers.filter(producer => producer.producer.id === producerId)
-
-    console.log("producer:",producer[0].producer)
 
 		if (!producer)
 			throw new Error(`producer with id "${producerId}" not found`);

@@ -18056,14 +18056,14 @@ let params = {
   }
 }
 
-let micParams;
-let webcamParams = { params };
+let micDefaultParams;
+let webcamDefalutParams = { params };
 let consumingTransports = [];
 
 const audioStreamSuccess = (stream) => {
   localAudio.srcObject = stream
 
-  micParams = { track: stream.getAudioTracks()[0], ...micParams };
+  micParams = { track: stream.getAudioTracks()[0], ...micDefaultParams };
   //webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams };
 
   joinRoom()
@@ -18450,8 +18450,9 @@ const enableWebcam = async () => {
         }
       }
     }).then(async (stream) =>{
+      console.log("stream:", stream)
       localWebcam.srcObject = stream
-      webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams }
+      webcamParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams }
 
       webcamProducer = await producerTransport.produce(webcamParams);
 
@@ -18520,10 +18521,28 @@ const enableWebcam = async () => {
   //store.dispatch(stateActions.setWebcamInProgress(false));
 }
 
+const disableWebcam = async () => {
+  console.log('disableWebcam()');
+  if (!webcamProducer)
+      return;
+  webcamProducer.close();
+  //store.dispatch(stateActions.removeProducer(this._webcamProducer.id));
+  try {
+    await socket.emit('closeProducer', { producerId: webcamProducer.id });
+  }
+  catch (error) {
+      console.error(`Error closing server-side webcam Producer: ${error}`);
+  }
+  console.log("before webcamProducer:", webcamProducer)
+  webcamProducer = null;
+  console.log("after webcamProducer:", webcamProducer)
+}
+
 
 btnEnableMic.addEventListener('click',enableMic)
 btnDisableMic.addEventListener('click',disableMic)
 btnMuteMic.addEventListener('click',muteMic)
 btnUnmuteMic.addEventListener('click',unmuteMic)
 btnEnableWebcam.addEventListener('click',enableWebcam)
+btnDisableWebcam.addEventListener('click',disableWebcam)
 },{"mediasoup-client":61,"socket.io-client":75}]},{},[86]);

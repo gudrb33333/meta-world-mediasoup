@@ -48,15 +48,15 @@ let params = {
   }
 }
 
-let micParams;
-let webcamParams = { params };
+let micDefaultParams;
+let webcamDefalutParams = { params };
 let consumingTransports = [];
 
 const audioStreamSuccess = (stream) => {
   localAudio.srcObject = stream
 
-  micParams = { track: stream.getAudioTracks()[0], ...micParams };
-  //webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams };
+  micParams = { track: stream.getAudioTracks()[0], ...micDefaultParams };
+  //webcamParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams };
 
   joinRoom()
 }
@@ -443,7 +443,7 @@ const enableWebcam = async () => {
       }
     }).then(async (stream) =>{
       localWebcam.srcObject = stream
-      webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams }
+      webcamParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams }
 
       webcamProducer = await producerTransport.produce(webcamParams);
 
@@ -512,9 +512,25 @@ const enableWebcam = async () => {
   //store.dispatch(stateActions.setWebcamInProgress(false));
 }
 
+const disableWebcam = async () => {
+  console.log('disableWebcam()');
+  if (!webcamProducer)
+      return;
+  webcamProducer.close();
+  //store.dispatch(stateActions.removeProducer(this._webcamProducer.id));
+  try {
+    await socket.emit('closeProducer', { producerId: webcamProducer.id });
+  }
+  catch (error) {
+      console.error(`Error closing server-side webcam Producer: ${error}`);
+  }
+  webcamProducer = null;
+}
+
 
 btnEnableMic.addEventListener('click',enableMic)
 btnDisableMic.addEventListener('click',disableMic)
 btnMuteMic.addEventListener('click',muteMic)
 btnUnmuteMic.addEventListener('click',unmuteMic)
 btnEnableWebcam.addEventListener('click',enableWebcam)
+btnDisableWebcam.addEventListener('click',disableWebcam)
