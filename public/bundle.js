@@ -18012,12 +18012,12 @@ const mediasoupClient = require('mediasoup-client')
 
 const roomName = window.location.pathname.split('/')[2]
 
-//const socket = io("wss://hubs.local:3000/mediasoup")
-const socket = io("wss://stream.meta-world.gudrb33333.click/mediasoup")
+const socket = io("wss://hubs.local:3000/mediasoup")
+//const socket = io("wss://stream.meta-world.gudrb33333.click/mediasoup")
 
 socket.on('connection-success', ({ socketId }) => {
   console.log(socketId)
-  getLocalStream()
+  getLocalAudioStream()
 })
 
 let device
@@ -18025,7 +18025,7 @@ let rtpCapabilities
 let producerTransport
 let consumerTransports = []
 let micProducer
-let videoProducer
+let webcamProducer
 let consumer
 let isProducer = false
 
@@ -18057,14 +18057,14 @@ let params = {
 }
 
 let micParams;
-let videoParams = { params };
+let webcamParams = { params };
 let consumingTransports = [];
 
-const streamSuccess = (stream) => {
-  localVideo.srcObject = stream
+const audioStreamSuccess = (stream) => {
+  localAudio.srcObject = stream
 
   micParams = { track: stream.getAudioTracks()[0], ...micParams };
-  videoParams = { track: stream.getVideoTracks()[0], ...videoParams };
+  //webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams };
 
   joinRoom()
 }
@@ -18081,21 +18081,21 @@ const joinRoom = () => {
   })
 }
 
-const getLocalStream = () => {
+const getLocalAudioStream = () => {
   navigator.mediaDevices.getUserMedia({
     audio: true,
-    video: {
-      width: {
-        min: 640,
-        max: 1920,
-      },
-      height: {
-        min: 400,
-        max: 1080,
-      }
-    }
+    // video: {
+    //   width: {
+    //     min: 640,
+    //     max: 1920,
+    //   },
+    //   height: {
+    //     min: 400,
+    //     max: 1080,
+    //   }
+    // }
   })
-  .then(streamSuccess)
+  .then(audioStreamSuccess)
   .catch(error => {
     console.log(error.message)
   })
@@ -18200,7 +18200,7 @@ const connectSendTransport = async () => {
   // this action will trigger the 'connect' and 'produce' events above
   
   micProducer = await producerTransport.produce(micParams);
-  videoProducer = await producerTransport.produce(videoParams);
+  webcamProducer = await producerTransport.produce(webcamParams);
 
   micProducer.on('trackended', () => {
     console.log('audio track ended')
@@ -18214,13 +18214,13 @@ const connectSendTransport = async () => {
     // close audio track
   })
   
-  videoProducer.on('trackended', () => {
+  webcamProducer.on('trackended', () => {
     console.log('video track ended')
 
     // close video track
   })
 
-  videoProducer.on('transportclose', () => {
+  webcamProducer.on('transportclose', () => {
     console.log('video transport ended')
 
     // close video track
@@ -18425,32 +18425,105 @@ const disableMic = async () => {
   // micProducer = null;
 }
 
-const enableVideo = async () => {
-  // we now call produce() to instruct the producer transport
-  // to send media to the Router
-  // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
-  // this action will trigger the 'connect' and 'produce' events above
-  
-  videoProducer = await producerTransport.produce(videoParams);
+const enableWebcam = async () => {
+  console.log('enableWebcam()')
+  if (webcamProducer)
+      return;
+  // if (!this._mediasoupDevice.canProduce('video')) {
+  //     logger.error('enableWebcam() | cannot produce video');
+  //     return;
+  // }
+  // store.dispatch(stateActions.setWebcamInProgress(true));
+  //let stream;
+  try {
 
-  videoProducer.on('trackended', () => {
-    console.log('video track ended')
+    stream = navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        width: {
+          min: 640,
+          max: 1920,
+        },
+        height: {
+          min: 400,
+          max: 1080,
+        }
+      }
+    }).then(async (stream) =>{
+      localWebcam.srcObject = stream
+      webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams }
 
-    // close video track
-  })
+      webcamProducer = await producerTransport.produce(webcamParams);
 
-  videoProducer.on('transportclose', () => {
-    console.log('video transport ended')
+      webcamProducer.on('transportclose', () => {
+        webcamProducer = null;
+      });
+      webcamProducer.on('trackended', () => {
+        console.log('Webcam disconnected!');
+        // this.disableWebcam()
+        //     // eslint-disable-next-line @typescript-eslint/no-empty-function
+        //     .catch(() => { });
+      });
+    })
+    .catch(error => {
+      console.log(error.message)
+    })
 
-    // close video track
-  })
+
+    // if (!this._externalVideo) {
+    //     stream = await this._worker.getUserMedia({
+    //         video: { source: 'device' }
+    //     });
+    // }
+    // else {
+    //     stream = await this._worker.getUserMedia({
+    //         video: {
+    //             source: this._externalVideo.startsWith('http') ? 'url' : 'file',
+    //             file: this._externalVideo,
+    //             url: this._externalVideo
+    //         }
+    //     });
+    // }
+    // TODO: For testing.
+    //global.videoStream = stream;
+
+    //webcamProducer = await producerTransport.produce(webcamParams);
+    // TODO.
+    // const device = {
+    //     label: 'rear-xyz'
+    // };
+    // store.dispatch(stateActions.addProducer({
+    //     id: this._webcamProducer.id,
+    //     deviceLabel: device.label,
+    //     type: this._getWebcamType(device),
+    //     paused: this._webcamProducer.paused,
+    //     track: this._webcamProducer.track,
+    //     rtpParameters: this._webcamProducer.rtpParameters,
+    //     codec: this._webcamProducer.rtpParameters.codecs[0].mimeType.split('/')[1]
+    // }));
+    //webcamProducer.on('transportclose', () => {
+    //    webcamProducer = null;
+    //});
+    //webcamProducer.on('trackended', () => {
+    //    console.log('Webcam disconnected!');
+        // this.disableWebcam()
+        //     // eslint-disable-next-line @typescript-eslint/no-empty-function
+        //     .catch(() => { });
+    //});
+  }
+  catch (error) {
+      console.error('enableWebcam() | failed:%o', error);
+      console.error('enabling Webcam!');
+      // if (track)
+      //     track.stop();
+  }
+  //store.dispatch(stateActions.setWebcamInProgress(false));
 }
-
 
 
 btnEnableMic.addEventListener('click',enableMic)
 btnDisableMic.addEventListener('click',disableMic)
 btnMuteMic.addEventListener('click',muteMic)
 btnUnmuteMic.addEventListener('click',unmuteMic)
-btnVideo.addEventListener('click',enableVideo)
+btnEnableWebcam.addEventListener('click',enableWebcam)
 },{"mediasoup-client":61,"socket.io-client":75}]},{},[86]);
