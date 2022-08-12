@@ -4,8 +4,8 @@ const mediasoupClient = require('mediasoup-client')
 
 const roomName = window.location.pathname.split('/')[2]
 
-//const socket = io("wss://hubs.local:3000/mediasoup")
-const socket = io("wss://stream.meta-world.gudrb33333.click/mediasoup")
+const socket = io("wss://hubs.local:3000/mediasoup")
+//const socket = io("wss://stream.meta-world.gudrb33333.click/mediasoup")
 
 socket.on('connection-success', ({ socketId }) => {
   console.log(socketId)

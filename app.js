@@ -63,8 +63,8 @@ let consumers = []      // [ { socketId1, roomName1, consumer, }, ... ]
 
 const createWorker = async () => {
   worker = await mediasoup.createWorker({
-    rtcMinPort: 40000,
-    rtcMaxPort: 41000,
+    rtcMinPort: 2000,
+    rtcMaxPort: 2020,
   })
   console.log(`worker pid ${worker.pid}`)
 
@@ -478,9 +478,11 @@ const createWebRtcTransport = async (router) => {
             announcedIp: '127.0.0.1',
           }
         ],
-        enableUdp: true,
-        enableTcp: true,
-        preferUdp: true,
+        initialAvailableOutgoingBitrate : 1000000,
+        minimumAvailableOutgoingBitrate : 600000,
+        maxSctpMessageSize              : 262144,
+        // Additional options that are not part of WebRtcTransportOptions.
+        maxIncomingBitrate              : 1500000
       }
 
       // https://mediasoup.org/documentation/v3/mediasoup/api/#router-createWebRtcTransport
