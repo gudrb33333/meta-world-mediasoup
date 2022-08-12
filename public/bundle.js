@@ -18026,12 +18026,16 @@ let producerTransport
 let consumerTransports = []
 let micProducer
 let webcamProducer
+let shareProducer
 let consumer
 let isProducer = false
 
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerOptions
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
-let params = {
+
+
+let micDefaultParams;
+let webcamDefalutParams = {
   // mediasoup params
   encodings: [
     {
@@ -18054,17 +18058,14 @@ let params = {
   codecOptions: {
     videoGoogleStartBitrate: 1000
   }
-}
-
-let micDefaultParams;
-let webcamDefalutParams = { params };
+};
 let consumingTransports = [];
 
 const audioStreamSuccess = (stream) => {
   localAudio.srcObject = stream
 
   micParams = { track: stream.getAudioTracks()[0], ...micDefaultParams };
-  //webcamParams = { track: stream.getVideoTracks()[0], ...webcamParams };
+  //webcamParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams };
 
   joinRoom()
 }
@@ -18450,7 +18451,6 @@ const enableWebcam = async () => {
         }
       }
     }).then(async (stream) =>{
-      console.log("stream:", stream)
       localWebcam.srcObject = stream
       webcamParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams }
 
@@ -18461,9 +18461,9 @@ const enableWebcam = async () => {
       });
       webcamProducer.on('trackended', () => {
         console.log('Webcam disconnected!');
-        // this.disableWebcam()
-        //     // eslint-disable-next-line @typescript-eslint/no-empty-function
-        //     .catch(() => { });
+        disableWebcam()
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            .catch(() => { });
       });
     })
     .catch(error => {
@@ -18533,9 +18533,117 @@ const disableWebcam = async () => {
   catch (error) {
       console.error(`Error closing server-side webcam Producer: ${error}`);
   }
-  console.log("before webcamProducer:", webcamProducer)
   webcamProducer = null;
-  console.log("after webcamProducer:", webcamProducer)
+}
+
+
+const enableShare = async () => {
+  console.log('enableShare()')
+  if (webcamProducer)
+      return;
+  // if (!this._mediasoupDevice.canProduce('video')) {
+  //     logger.error('enableWebcam() | cannot produce video');
+  //     return;
+  // }
+  // store.dispatch(stateActions.setWebcamInProgress(true));
+  //let stream;
+  try {
+
+    stream = navigator.mediaDevices.getDisplayMedia({
+      audio : false,
+      video :
+      {
+        displaySurface : 'monitor',
+        logicalSurface : true,
+        cursor         : true,
+        width          : { max: 1920 },
+        height         : { max: 1080 },
+        frameRate      : { max: 30 }
+      }
+    }).then(async (stream) =>{
+      localShare.srcObject = stream
+      shareParams = { track: stream.getVideoTracks()[0], ...webcamDefalutParams }
+
+      shareProducer = await producerTransport.produce(shareParams);
+
+      shareProducer.on('transportclose', () => {
+        shareProducer = null;
+      });
+      shareProducer.on('trackended', () => {
+        console.log('Webcam disconnected!');
+        disableShare()
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            .catch(() => { });
+      });
+    })
+    .catch(error => {
+      console.log(error.message)
+    })
+
+
+    // if (!this._externalVideo) {
+    //     stream = await this._worker.getUserMedia({
+    //         video: { source: 'device' }
+    //     });
+    // }
+    // else {
+    //     stream = await this._worker.getUserMedia({
+    //         video: {
+    //             source: this._externalVideo.startsWith('http') ? 'url' : 'file',
+    //             file: this._externalVideo,
+    //             url: this._externalVideo
+    //         }
+    //     });
+    // }
+    // TODO: For testing.
+    //global.videoStream = stream;
+
+    //webcamProducer = await producerTransport.produce(webcamParams);
+    // TODO.
+    // const device = {
+    //     label: 'rear-xyz'
+    // };
+    // store.dispatch(stateActions.addProducer({
+    //     id: this._webcamProducer.id,
+    //     deviceLabel: device.label,
+    //     type: this._getWebcamType(device),
+    //     paused: this._webcamProducer.paused,
+    //     track: this._webcamProducer.track,
+    //     rtpParameters: this._webcamProducer.rtpParameters,
+    //     codec: this._webcamProducer.rtpParameters.codecs[0].mimeType.split('/')[1]
+    // }));
+    //webcamProducer.on('transportclose', () => {
+    //    webcamProducer = null;
+    //});
+    //webcamProducer.on('trackended', () => {
+    //    console.log('Webcam disconnected!');
+        // this.disableWebcam()
+        //     // eslint-disable-next-line @typescript-eslint/no-empty-function
+        //     .catch(() => { });
+    //});
+  }
+  catch (error) {
+      console.error('enableWebcam() | failed:%o', error);
+      console.error('enabling Webcam!');
+      // if (track)
+      //     track.stop();
+  }
+  //store.dispatch(stateActions.setWebcamInProgress(false));
+}
+
+const disableShare= async () => {
+  console.log('disableWebcam()');
+  if (!shareProducer)
+      return;
+  shareProducer.close();
+  //store.dispatch(stateActions.removeProducer(this._webcamProducer.id));
+  try {
+    await socket.emit('closeProducer', { producerId: shareProducer.id });
+  }
+  catch (error) {
+      console.error(`Error closing server-side webcam Producer: ${error}`);
+  }
+  shareProducer = null;
 }
 
 
@@ -18545,4 +18653,6 @@ btnMuteMic.addEventListener('click',muteMic)
 btnUnmuteMic.addEventListener('click',unmuteMic)
 btnEnableWebcam.addEventListener('click',enableWebcam)
 btnDisableWebcam.addEventListener('click',disableWebcam)
+btnEnableShare.addEventListener('click',enableShare)
+btnDisableShare.addEventListener('click',disableShare)
 },{"mediasoup-client":61,"socket.io-client":75}]},{},[86]);

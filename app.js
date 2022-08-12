@@ -63,8 +63,8 @@ let consumers = []      // [ { socketId1, roomName1, consumer, }, ... ]
 
 const createWorker = async () => {
   worker = await mediasoup.createWorker({
-    rtcMinPort: 2000,
-    rtcMaxPort: 2020,
+    rtcMinPort: 40000,
+    rtcMaxPort: 41000,
   })
   console.log(`worker pid ${worker.pid}`)
 
@@ -435,12 +435,9 @@ connections.on('connection', async socket => {
 
     producer[0].producer.close();
 
-
-    console.log('before producers:',producers)
     // Remove from its map.
     //peer.data.producers.delete(producer.id);
     producers = producers.filter(producer => producer.producer.id != producerId)
-    console.log('after producers:',producers)
   })
 
   socket.on('pauseProducer', async ({ producerId }) => {
@@ -460,8 +457,6 @@ connections.on('connection', async socket => {
     console.log('resumeProducer')
 
 		const producer = producers.filter(producer => producer.producer.id === producerId)
-
-    console.log("producer:",producer[0].producer)
 
 		if (!producer)
 			throw new Error(`producer with id "${producerId}" not found`);
