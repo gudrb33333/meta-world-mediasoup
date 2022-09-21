@@ -1,14 +1,13 @@
 {
-  "name": "example1",
+  "name": "meta-world-mediasoup",
   "version": "1.0.0",
-  "description": "mediasoup tutorials",
+  "description": "webRTC server for meta world ",
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon app.js",
     "watch": "watchify public/index.js -o public/bundle.js -v"
   },
-  "author": "amir eshaq",
   "license": "ISC",
   "type": "module",
   "dependencies": {
