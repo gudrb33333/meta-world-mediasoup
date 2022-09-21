@@ -27,8 +27,8 @@ app.use('/sfu/:room', express.static(path.join(__dirname, 'public')))
 
 // SSL cert for HTTPS access
 const options = {
-  //key: fs.readFileSync('./server/ssl/key.pem', 'utf-8'),
-  //cert: fs.readFileSync('./server/ssl/cert.pem', 'utf-8')
+  key: fs.readFileSync('./server/ssl/key.pem', 'utf-8'),
+  cert: fs.readFileSync('./server/ssl/cert.pem', 'utf-8')
 }
 
 const httpsServer = https.createServer(options, app)
@@ -52,7 +52,7 @@ const connections = io.of('/mediasoup')
  *     |-> Producer Transport(s)
  *         |-> Producer
  *     |-> Consumer Transport(s)
- *         |-> Consumer 
+ *         |-> Consumer
  **/
 let worker
 let rooms = {}          // { roomName1: { Router, rooms: [ sicketId1, ... ] }, ...}
@@ -63,8 +63,8 @@ let consumers = []      // [ { socketId1, roomName1, consumer, }, ... ]
 
 const createWorker = async () => {
   worker = await mediasoup.createWorker({
-    rtcMinPort: 2000,
-    rtcMaxPort: 2020,
+    rtcMinPort: 40000,
+    rtcMaxPort: 41000,
   })
   console.log(`worker pid ${worker.pid}`)
 
@@ -105,6 +105,11 @@ connections.on('connection', async socket => {
   console.log(socket.id)
   socket.emit('connection-success', {
     socketId: socket.id,
+  })
+
+  socket.on('set-socket-id', async ({ avaterSessionId }, callback) => {
+    socket.id = avaterSessionId
+    callback()
   })
 
   const removeItems = (items, socketId, type) => {
@@ -173,7 +178,7 @@ connections.on('connection', async socket => {
     } else {
       router1 = await worker.createRouter({ mediaCodecs, })
     }
-    
+
     console.log(`Router ID: ${router1.id}`, peers.length)
 
     rooms[roomName] = {
@@ -249,10 +254,10 @@ connections.on('connection', async socket => {
     }
   }
 
-  const addProducer = (producer, roomName) => {
+  const addProducer = (producer, roomName, appData) => {
     producers = [
       ...producers,
-      { socketId: socket.id, producer, roomName, }
+      { socketId: socket.id, producer, roomName, appData}
     ]
 
     peers[socket.id] = {
@@ -286,14 +291,18 @@ connections.on('connection', async socket => {
     const { roomName } = peers[socket.id]
 
     let producerList = []
+    let producerSocketIdList = []
+    let producerAppDataList = []
     producers.forEach(producerData => {
       if (producerData.socketId !== socket.id && producerData.roomName === roomName) {
         producerList = [...producerList, producerData.producer.id]
+        producerSocketIdList = [...producerSocketIdList, producerData.socketId]
+        producerAppDataList = [...producerAppDataList, producerData.appData]
       }
     })
 
     // return the producer list back to the client
-    callback(producerList)
+    callback(producerList, producerSocketIdList, producerAppDataList)
   })
 
   const informConsumers = (roomName, socketId, id) => {
@@ -304,7 +313,7 @@ connections.on('connection', async socket => {
       if (producerData.socketId !== socketId && producerData.roomName === roomName) {
         const producerSocket = peers[producerData.socketId].socket
         // use socket to send producer id to producer
-        producerSocket.emit('new-producer', { producerId: id })
+        producerSocket.emit('new-producer', { producerId: id, socketId: socketId })
       }
     })
   }
@@ -317,7 +326,7 @@ connections.on('connection', async socket => {
   // see client's socket.emit('transport-connect', ...)
   socket.on('transport-connect', ({ dtlsParameters }) => {
     console.log('DTLS PARAMS... ', { dtlsParameters })
-    
+
     getTransport(socket.id).connect({ dtlsParameters })
   })
 
@@ -327,16 +336,17 @@ connections.on('connection', async socket => {
     const producer = await getTransport(socket.id).produce({
       kind,
       rtpParameters,
+      appData,
     })
 
     // add producer to the producers array
     const { roomName } = peers[socket.id]
 
-    addProducer(producer, roomName)
+    addProducer(producer, roomName, appData)
 
     informConsumers(roomName, socket.id, producer.id)
 
-    console.log('Producer ID: ', producer.id, producer.kind)
+    console.log('Producer ID: ', producer.id, producer.kind, producer.appData)
 
     producer.on('transportclose', () => {
       console.log('transport for this producer closed ')
@@ -346,7 +356,8 @@ connections.on('connection', async socket => {
     // Send back to the client the Producer's id
     callback({
       id: producer.id,
-      producersExist: producers.length>1 ? true : false
+      producersExist: producers.length>1 ? true : false,
+      appData: producer.appData,
     })
   })
 
@@ -364,6 +375,8 @@ connections.on('connection', async socket => {
 
       const { roomName } = peers[socket.id]
       const router = rooms[roomName].router
+      const remoteProducerList = producers.filter(producer => producer.producer.id === remoteProducerId)
+      const remoteProducerAppData = remoteProducerList[0].appData
       let consumerTransport = transports.find(transportData => (
         transportData.consumer && transportData.transport.id == serverConsumerTransportId
       )).transport
@@ -386,7 +399,7 @@ connections.on('connection', async socket => {
 
         consumer.on('producerclose', () => {
           console.log('producer of consumer closed')
-          socket.emit('producer-closed', { remoteProducerId })
+          socket.emit('producer-closed', { remoteProducerId, remoteProducerAppData })
 
           consumerTransport.close([])
           transports = transports.filter(transportData => transportData.transport.id !== consumerTransport.id)
@@ -395,12 +408,13 @@ connections.on('connection', async socket => {
         })
 
         addConsumer(consumer, roomName)
-
+        console.log('appData:', remoteProducerAppData)
         // from the consumer extract the following params
         // to send back to the Client
         const params = {
           id: consumer.id,
           producerId: remoteProducerId,
+          appData: remoteProducerAppData,
           kind: consumer.kind,
           rtpParameters: consumer.rtpParameters,
           serverConsumerId: consumer.id,
@@ -427,7 +441,7 @@ connections.on('connection', async socket => {
 
   socket.on('closeProducer', async ({ producerId }) => {
     console.log('closeProducer')
-    
+
     const producer = producers.filter(producer => producer.producer.id === producerId)
 
     if (!producer)
@@ -443,27 +457,21 @@ connections.on('connection', async socket => {
   socket.on('pauseProducer', async ({ producerId }) => {
     console.log('pauseProducer')
 
-		const producer = producers.filter(producer => producer.producer.id === producerId)
+    const producer = producers.filter(producer => producer.producer.id === producerId)
 
-		if (!producer)
-			throw new Error(`producer with id "${producerId}" not found`);
+    if (!producer)
+      throw new Error(`producer with id "${producerId}" not found`);
 
-		await producer[0].producer.pause();
-
-		//accept();
+    await producer[0].producer.pause();
   })
 
   socket.on('resumeProducer', async ({ producerId }) => {
-    console.log('resumeProducer')
+    const producer = producers.filter(producer => producer.producer.id === producerId)
 
-		const producer = producers.filter(producer => producer.producer.id === producerId)
+    if (!producer)
+      throw new Error(`producer with id "${producerId}" not found`);
 
-		if (!producer)
-			throw new Error(`producer with id "${producerId}" not found`);
-
-		await producer[0].producer.resume();
-
-		//accept();
+    await producer[0].producer.resume();
   })
 })
 
@@ -474,10 +482,13 @@ const createWebRtcTransport = async (router) => {
       const webRtcTransport_options = {
         listenIps: [
           {
-            ip: '0.0.0.0', // replace with relevant IP address
-            announcedIp: '127.0.0.1',
+            ip: '172.31.4.194', // replace with relevant IP address
+            announcedIp: '52.78.56.108',
           }
         ],
+        //enableUdp: true,
+        //enableTcp: true,
+        //preferUdp: true,
         initialAvailableOutgoingBitrate : 1000000,
         minimumAvailableOutgoingBitrate : 600000,
         maxSctpMessageSize              : 262144,
@@ -506,27 +517,3 @@ const createWebRtcTransport = async (router) => {
     }
   })
 }
-
-
-
-// case 'closeProducer':
-//   {
-//     // Ensure the Peer is joined.
-//     if (!peer.data.joined)
-//       throw new Error('Peer not yet joined');
-
-//     const { producerId } = request.data;
-//     const producer = peer.data.producers.get(producerId);
-
-//     if (!producer)
-//       throw new Error(`producer with id "${producerId}" not found`);
-
-//     producer.close();
-
-//     // Remove from its map.
-//     peer.data.producers.delete(producer.id);
-
-//     accept();
-
-//     break;
-//   }
