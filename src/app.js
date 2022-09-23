@@ -118,14 +118,17 @@ connections.on('connection', async (socket) => {
 		producers = removeItems(producers, socket.id, 'producer');
 		transports = removeItems(transports, socket.id, 'transport');
 
-		const { roomName } = peers[socket.id];
-		delete peers[socket.id];
+		if(peers[socket.id] !== undefined){
+			const { roomName } = peers[socket.id];
 
-		// remove socket from room
-		rooms[roomName] = {
-			router: rooms[roomName].router,
-			peers: rooms[roomName].peers.filter((socketId) => socketId !== socket.id),
-		};
+			// remove socket from room
+			rooms[roomName] = {
+				router: rooms[roomName].router,
+				peers: rooms[roomName].peers.filter((socketId) => socketId !== socket.id),
+			};
+		}
+
+		delete peers[socket.id];
 	});
 
 	socket.on('joinRoom', async ({ roomName }, callback) => {
